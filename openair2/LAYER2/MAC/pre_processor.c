@@ -249,22 +249,34 @@ int rr_dl_run(module_id_t Mod_id,
   }
   *cur_UE = -1; // not all UEs might be allocated, mark end
 
+  uint32_t TBS_limit[MAX_MOBILES_PER_ENB] = {100000, 50000, 2500, 1000};
+  int weight_UE[MAX_MOBILES_PER_ENB] = {1,2,4,8};
   /* for one UE after the next: allocate resources */
   cur_UE = &UE_sched.head;
   while (*cur_UE >= 0) {
     const int UE_id = *cur_UE;
     UE_sched_ctrl_t *ue_ctrl = &UE_info->UE_sched_ctrl[UE_id];
+
+    // allocation
     ue_ctrl->rballoc_sub_UE[CC_id][rbg] = 1;
     rbgalloc_mask[rbg] = 0;
     const int sRBG = rbg == N_RBG - 1 ? RBGlastsize : RBGsize;
     ue_ctrl->pre_nb_available_rbs[CC_id] += sRBG;
     rb_required[UE_id] -= sRBG;
-    if (rb_required[UE_id] <= 0) {
-      *cur_UE = UE_sched.next[*cur_UE];
-      if (*cur_UE < 0)
+
+
+    const uint8_t cqi = UE_info->UE_sched_ctrl[UE_id].dl_cqi[CC_id];
+    const int mcs = cqi_to_mcs[cqi];
+
+    UE_info->UE_template[CC_id][UE_id].total_allocated_rbs += get_TBS_DL(mcs, rb_required[UE_id]);
+    weight_UE[UE_id]--;
+
+    if (rb_required[UE_id] <= 0 || TBS_limit[UE_id] <= UE_info->UE_template[CC_id][UE_id].total_allocated_rbs || weight_UE[UE_id]<=0) { // if TBS UE got exceeds the limit TBS, it skips the allocation for that UE
+      *cur_UE = UE_sched.next[*cur_UE]; // skip
+      if (*cur_UE < 0)   
         cur_UE = &UE_sched.head;
     } else {
-      cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE];
+      cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE]; // go to the next
     }
     n_rbg_sched--;
     if (n_rbg_sched <= 0)
