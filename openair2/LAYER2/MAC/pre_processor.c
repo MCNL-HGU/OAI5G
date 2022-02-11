@@ -51,7 +51,7 @@
 
 extern RAN_CONTEXT_t RC;
 
-#define DEBUG_eNB_SCHEDULER
+#define DEBUG_eNB_SCHEDULER 1
 #define DEBUG_HEADER_PARSING 1
 
 int next_ue_list_looped(UE_list_t* list, int UE_id) {
@@ -268,10 +268,10 @@ int rr_dl_run(module_id_t Mod_id,
     const uint8_t cqi = UE_info->UE_sched_ctrl[UE_id].dl_cqi[CC_id];
     const int mcs = cqi_to_mcs[cqi];
 
-    UE_info->UE_template[CC_id][UE_id].total_allocated_rbs += get_TBS_DL(mcs, rb_required[UE_id]);
+    UE_info->UE_template[CC_id][UE_id].total_allocated_tbs += get_TBS_DL(mcs, rb_required[UE_id]);
     weight_UE[UE_id]--;
 
-    if (rb_required[UE_id] <= 0 || TBS_limit[UE_id] <= UE_info->UE_template[CC_id][UE_id].total_allocated_rbs || weight_UE[UE_id]<=0) { // if TBS UE got exceeds the limit TBS, it skips the allocation for that UE
+    if (rb_required[UE_id] <= 0 || TBS_limit[UE_id] <= UE_info->UE_template[CC_id][UE_id].total_allocated_tbs || weight_UE[UE_id]<=0) { // if TBS UE got exceeds the limit TBS, it skips the allocation for that UE
       *cur_UE = UE_sched.next[*cur_UE]; // skip
       if (*cur_UE < 0)   
         cur_UE = &UE_sched.head;

@@ -124,7 +124,7 @@ void init_UE_info(UE_info_t *UE_info)
   UE_info->num_UEs = 0;
   init_ue_list(&UE_info->list);
   memset(UE_info->DLSCH_pdu, 0, sizeof(UE_info->DLSCH_pdu));
-  memset(UE_info->UE_template, 0, sizeof(UE_info->UE_template));
+  memset(UE_info->UE_template, 0, sizeof(UE_info->UE_template)); // init 0
   memset(UE_info->eNB_UE_stats, 0, sizeof(UE_info->eNB_UE_stats));
   memset(UE_info->UE_sched_ctrl, 0, sizeof(UE_info->UE_sched_ctrl));
   memset(UE_info->active, 0, sizeof(UE_info->active));
