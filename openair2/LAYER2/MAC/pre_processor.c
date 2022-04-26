@@ -179,6 +179,21 @@ int rr_dl_run(module_id_t Mod_id,
   const int RBGlastsize = get_rbg_size_last(Mod_id, CC_id);
   UE_info_t *UE_info = &RC.mac[Mod_id]->UE_info;
 
+
+  if(frame%100==0 && subframe==0){
+    for (int UE_i = UE_list->head; UE_i >= 0; UE_i = UE_list->next[UE_i])
+      printf("[%d.%d] UE_id[%d] total_TBS=%d\n",frame, subframe, UE_i, UE_info->UE_template[CC_id][UE_i].total_allocated_tbs);
+  }
+
+
+  if(frame%100==0 && subframe==0) {
+      for (int UE_i = UE_list->head; UE_i >= 0; UE_i = UE_list->next[UE_i])
+        UE_info->UE_template[CC_id][UE_i].total_allocated_tbs = 0;
+  }
+
+  uint32_t TBS_limit[4] = {10000000, 7000000, 5000000, 1000000}; // 10M 7M 5M 1M
+  int weight_standard[4]={1,2,3,4};
+  
   int rbg = 0;
   for (; !rbgalloc_mask[rbg]; rbg++)
     ; /* fast-forward to first allowed RBG */
@@ -191,6 +206,7 @@ int rr_dl_run(module_id_t Mod_id,
   int UE_id = *start_ue;
   UE_list_t UE_sched;
   int *cur_UE = &UE_sched.head;
+  int num_ue = 0;
   // Allocate retransmissions, and mark UEs with new transmissions
   do {
     // check whether there are HARQ retransmissions
@@ -212,9 +228,10 @@ int rr_dl_run(module_id_t Mod_id,
         for (; !rbgalloc_mask[rbg]; rbg++) /* fast-forward */ ;
       }
     } else {
-      if (UE_info->UE_template[CC_id][UE_id].dl_buffer_total > 0) {
+      if (UE_info->UE_template[CC_id][UE_id].dl_buffer_total > 0 && TBS_limit[UE_id] > UE_info->UE_template[CC_id][UE_id].total_allocated_tbs ) { 
         *cur_UE = UE_id;
         cur_UE = &UE_sched.next[UE_id];
+        num_ue++;
       }
     }
     UE_id = next_ue_list_looped(UE_list, UE_id);
@@ -249,17 +266,52 @@ int rr_dl_run(module_id_t Mod_id,
   }
   *cur_UE = -1; // not all UEs might be allocated, mark end
 
+  // DEBUG
+  for (int UE_i = UE_sched.head; UE_i >= 0; UE_i = UE_sched.next[UE_i]){
+    printf("[%d.%d] UE_id[%d]/num_ue=%d, mcs=%d, buffer=%d, rb_required=%d\n",frame,subframe, UE_i, num_ue, UE_info->eNB_UE_stats[CC_id][UE_i].dlsch_mcs1, UE_info->UE_template[CC_id][UE_i].dl_buffer_total, rb_required[UE_i]);
+  }
+
+  int weight_UE[4] = {0,0,0,0};
+
   /* for one UE after the next: allocate resources */
   cur_UE = &UE_sched.head;
   while (*cur_UE >= 0) {
+     bool init = true;
+    
+    for (int UE_i = UE_sched.head; UE_i >= 0; UE_i = UE_sched.next[UE_i]){
+      if(weight_UE[UE_i] < weight_standard[UE_i]) {init=false;}
+    }
+    if(init){
+      for(int i=0;i<4;i++)
+        weight_UE[i]=0;
+    }
+
     const int UE_id = *cur_UE;
+
+
+    // skip
+    if(weight_UE[UE_id] >= weight_standard[UE_id]) {
+      cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE];
+      continue;
+    }
+
+
     UE_sched_ctrl_t *ue_ctrl = &UE_info->UE_sched_ctrl[UE_id];
     ue_ctrl->rballoc_sub_UE[CC_id][rbg] = 1;
     rbgalloc_mask[rbg] = 0;
     const int sRBG = rbg == N_RBG - 1 ? RBGlastsize : RBGsize;
     ue_ctrl->pre_nb_available_rbs[CC_id] += sRBG;
     rb_required[UE_id] -= sRBG;
-    if (rb_required[UE_id] <= 0) {
+
+    weight_UE[UE_id]++;
+
+    int mcs = UE_info->eNB_UE_stats[CC_id][UE_id].dlsch_mcs1;
+    int tbs = get_TBS_DL(mcs, rb_required[UE_id]);
+    UE_info->UE_template[CC_id][UE_id].total_allocated_tbs += tbs;
+
+    printf("\t allocate: UE_id=%d, RGB=%d TBS=%d, total_TBS=%d\n",UE_id, sRBG, tbs, UE_info->UE_template[CC_id][UE_id].total_allocated_tbs);
+
+    if (rb_required[UE_id] <= 0 || TBS_limit[UE_id] <= UE_info->UE_template[CC_id][UE_id].total_allocated_tbs) {
       *cur_UE = UE_sched.next[*cur_UE];
       if (*cur_UE < 0)
         cur_UE = &UE_sched.head;
