@@ -1187,6 +1187,14 @@ typedef struct {
   UE_list_t list;
   int num_UEs;
   boolean_t active[MAX_MOBILES_PER_ENB];
+
+  bool TBS_active;
+  bool weight_active;
+
+  uint32_t TBS_limit[4];
+  int weight_standard[4];
+  int youtube_user[4];
+
 } UE_info_t;
 
 /*! \brief deleting control information*/

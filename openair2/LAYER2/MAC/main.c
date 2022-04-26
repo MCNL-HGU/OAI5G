@@ -49,17 +49,23 @@ void *mac_stats_thread(void *param) {
   eNB_MAC_INST     *mac      = (eNB_MAC_INST *)param;
   FILE *fd;
   UE_info_t        *UE_info  = &(mac->UE_info);
-
+  int isTube[4] ={0,0,0,0};
   while (!oai_exit) {
     sleep(1);
     fd=fopen("MAC_stats.log","w+");
     AssertFatal(fd!=NULL,"Cannot open MAC_stats.log\n");
+    FILE *fs = fopen("/home/mcnl-enb/openairinterface5g_d/SERVER/is_YOUTUBE.txt","rt");
+    fscanf(fs, "%d %d %d %d", &isTube[0],&isTube[1],&isTube[2],&isTube[3]);
+    
+
+
 
     for (int UE_id = 0; UE_id < MAX_MOBILES_PER_ENB; UE_id++) {
       if (UE_info->active[UE_id]) {
         int rnti = UE_RNTI(mac->Mod_id, UE_id);
         int CC_id = UE_PCCID(mac->Mod_id, UE_id);
         UE_sched_ctrl_t *UE_scheduling_control = &(UE_info->UE_sched_ctrl[UE_id]);
+        memcpy(UE_info->youtube_user,isTube,sizeof(isTube));
 
         double total_bler;
         if(UE_scheduling_control->pusch_rx_num[CC_id] == 0 && UE_scheduling_control->pusch_rx_error_num[CC_id] == 0) {
@@ -115,6 +121,7 @@ void *mac_stats_thread(void *param) {
       }
     }
     fclose(fd);
+    fclose(fs);
   }
   return(NULL);
 }
@@ -128,6 +135,22 @@ void init_UE_info(UE_info_t *UE_info)
   memset(UE_info->eNB_UE_stats, 0, sizeof(UE_info->eNB_UE_stats));
   memset(UE_info->UE_sched_ctrl, 0, sizeof(UE_info->UE_sched_ctrl));
   memset(UE_info->active, 0, sizeof(UE_info->active));
+  memset(UE_info->TBS_limit, 0, sizeof(UE_info->TBS_limit));
+  memset(UE_info->weight_standard, 0, sizeof(UE_info->weight_standard));
+  memset(UE_info->youtube_user, 0, sizeof(UE_info->youtube_user));
+}
+
+void init_scheduling_variable(UE_info_t *UE_info){
+    FILE *fp = fopen("../../../input.txt","rt");
+    
+    fscanf(fp, "%d", &UE_info->TBS_active);
+    fscanf(fp, "%d", &UE_info->weight_active);
+
+    for(int i=0;i<4;i++)
+      fscanf(fp, "%u", &UE_info->TBS_limit[i]);
+    for(int i=0;i<4;i++)
+      fscanf(fp, "%d", &UE_info->weight_standard[i]);
+    fclose(fp);
 }
 
 void mac_top_init_eNB(void)
@@ -193,6 +216,7 @@ void mac_top_init_eNB(void)
     mac[i]->pre_processor_ul.ul_algo.data = mac[i]->pre_processor_ul.ul_algo.setup();
 
     init_UE_info(&mac[i]->UE_info);
+    init_scheduling_variable(&mac[i]->UE_info);
   }
 
   RC.mac = mac;
