@@ -51,7 +51,7 @@
 
 extern RAN_CONTEXT_t RC;
 
-#define DEBUG_eNB_SCHEDULER 1
+#define DEBUG_eNB_SCHEDULER
 #define DEBUG_HEADER_PARSING 1
 
 int next_ue_list_looped(UE_list_t* list, int UE_id) {
@@ -172,8 +172,6 @@ int rr_dl_run(module_id_t Mod_id,
               int n_rbg_sched,
               uint8_t *rbgalloc_mask,
               void *data) {
-
-  // printf("rr_dl_run subframe %d\n",subframe);
   DevAssert(UE_list->head >= 0);
   DevAssert(n_rbg_sched > 0);
   const int N_RBG = to_rbg(RC.mac[Mod_id]->common_channels[CC_id].mib->message.dl_Bandwidth);
@@ -228,13 +226,8 @@ int rr_dl_run(module_id_t Mod_id,
 
   // after allocating retransmissions: pre-allocate CCE, compute number of
   // requested RBGs
-
-  uint32_t TBS_limit[MAX_MOBILES_PER_ENB] = {100000, 50000, 2500, 1000};
-  int weight_UE_const[MAX_MOBILES_PER_ENB] = {1,5,8,16};
-
   max_num_ue = min(max_num_ue, n_rbg_sched);
   int rb_required[MAX_MOBILES_PER_ENB]; // how much UEs request
-  int num_ue=0;
   cur_UE = &UE_sched.head;
   while (*cur_UE >= 0 && max_num_ue > 0) {
     const int UE_id = *cur_UE;
@@ -246,104 +239,37 @@ int rr_dl_run(module_id_t Mod_id,
       *cur_UE = UE_sched.next[UE_id];
       continue;
     }
-    // else if(TBS_limit[UE_id] <= UE_info->UE_template[CC_id][UE_id].total_allocated_tbs){
-    //   *cur_UE = UE_sched.next[UE_id];
-    //   continue;
-    // }
     UE_info->UE_sched_ctrl[UE_id].pre_dci_dl_pdu_idx = idx;
     const int mcs = cqi_to_mcs[cqi];
     UE_info->eNB_UE_stats[CC_id][UE_id].dlsch_mcs1 = mcs;
     const uint32_t B = UE_info->UE_template[CC_id][UE_id].dl_buffer_total;
     rb_required[UE_id] = find_nb_rb_DL(mcs, B, n_rbg_sched * RBGsize, RBGsize);
-    
     max_num_ue--;
-    num_ue++;
     cur_UE = &UE_sched.next[UE_id]; // go to next
   }
   *cur_UE = -1; // not all UEs might be allocated, mark end
-  // num_ue--;
 
   /* for one UE after the next: allocate resources */
   cur_UE = &UE_sched.head;
-  int start_ue2 = *cur_UE;
-  int weight_UE[MAX_MOBILES_PER_ENB]= {1,3,8,16};;
-
-  // switch(num_ue){
-  //   case 1:
-  //   weight_UE[0] = n_rbg_sched;
-  //   weight_UE[1] = n_rbg_sched;
-  //   break;
-
-  //   case 2:
-  //   weight_UE[0] = n_rbg_sched * 0.2;
-  //   weight_UE[1] = n_rbg_sched - weight_UE[0];
-  //   break;
-
-  //   default:
-  //   memcpy(weight_UE, weight_UE_const, sizeof(int)*MAX_MOBILES_PER_ENB);
-  // }
-
-  
-
   while (*cur_UE >= 0) {
     const int UE_id = *cur_UE;
     UE_sched_ctrl_t *ue_ctrl = &UE_info->UE_sched_ctrl[UE_id];
-    for (; !rbgalloc_mask[rbg]; rbg++);
-
-    // if((num_ue==1 && (weight_UE[0]<=0 || weight_UE[1]<=0))||(num_ue==2 && weight_UE[0]<=0 && weight_UE[1]<=0)){
-    //   // printf("value init\n");
-    //   memcpy(weight_UE, weight_UE_const, sizeof(int)*MAX_MOBILES_PER_ENB);
-    // }
-
-
-    
-    // if(weight_UE[UE_id]<=0){
-    //   cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE]; // go to the next
-    //   printf("UE_id %d skipped to %d\n", UE_id, *cur_UE);
-    //   continue;
-    // }
-
-    // printf("UE_id %d allocated\n", UE_id);
-
-    // allocation
-    for(int i=0;i<weight_UE[UE_id];i++){
-      printf("[%d.%d] num_ue=%d weight[%d]=%d rbg=%d n_sched=%d \n", frame, subframe ,num_ue, UE_id, i, rbg, n_rbg_sched);
-
-      ue_ctrl->rballoc_sub_UE[CC_id][rbg] = 1;
-      rbgalloc_mask[rbg] = 0;
-      const int sRBG = rbg == N_RBG - 1 ? RBGlastsize : RBGsize;
-      ue_ctrl->pre_nb_available_rbs[CC_id] += sRBG;
-      rb_required[UE_id] -= sRBG;
-      n_rbg_sched--;
-
-
-      if (rb_required[UE_id] <= 0) break;
-      if (n_rbg_sched <= 0)
-        break;
-
-      for (rbg++; !rbgalloc_mask[rbg]; rbg++) /* fast-forward */ ;
-    }
-    
-
-    // const uint8_t cqi = UE_info->UE_sched_ctrl[UE_id].dl_cqi[CC_id];
-    // const int mcs = cqi_to_mcs[cqi];
-
-    // UE_info->UE_template[CC_id][UE_id].total_allocated_tbs += get_TBS_DL(mcs, rb_required[UE_id]);
-    // weight_UE[UE_id]--;
-
-    
-    if (rb_required[UE_id] <= 0) { //|| TBS_limit[UE_id] <= UE_info->UE_template[CC_id][UE_id].total_allocated_tbs ) { // if TBS UE got exceeds the limit TBS, it skips the allocation for that UE
-      *cur_UE = UE_sched.next[*cur_UE]; // skip
-      num_ue--;
-      if (*cur_UE < 0)   
+    ue_ctrl->rballoc_sub_UE[CC_id][rbg] = 1;
+    rbgalloc_mask[rbg] = 0;
+    const int sRBG = rbg == N_RBG - 1 ? RBGlastsize : RBGsize;
+    ue_ctrl->pre_nb_available_rbs[CC_id] += sRBG;
+    rb_required[UE_id] -= sRBG;
+    if (rb_required[UE_id] <= 0) {
+      *cur_UE = UE_sched.next[*cur_UE];
+      if (*cur_UE < 0)
         cur_UE = &UE_sched.head;
     } else {
-      cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE]; // go to the next
+      cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE];
     }
-    // n_rbg_sched--;
+    n_rbg_sched--;
     if (n_rbg_sched <= 0)
       break;
-    // for (; !rbgalloc_mask[rbg]; rbg++) /* fast-forward */ ;
+    for (rbg++; !rbgalloc_mask[rbg]; rbg++) /* fast-forward */ ;
   }
 
   return n_rbg_sched;
