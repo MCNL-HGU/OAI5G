@@ -853,7 +853,7 @@ typedef struct {
   int8_t total_allocated_rbs;
 
   // total allocated TBS
-  int8_t total_allocated_tbs;
+  int32_t total_allocated_tbs;
 
   /// pre-assigned MCS by the ulsch preprocessor
   uint8_t pre_assigned_mcs_ul;

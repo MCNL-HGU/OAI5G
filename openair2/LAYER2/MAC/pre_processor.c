@@ -191,8 +191,8 @@ int rr_dl_run(module_id_t Mod_id,
         UE_info->UE_template[CC_id][UE_i].total_allocated_tbs = 0;
   }
 
-  uint32_t TBS_limit[4] = {10000000, 7000000, 5000000, 1000000}; // 10M 7M 5M 1M
-  int weight_standard[4]={1,2,3,4};
+  uint32_t TBS_limit[4] = {10000000, 10000000, 5000000, 1000000}; // 10M 7M 5M 1M
+  int weight_standard[4]={1,2,1,1};
   
   int rbg = 0;
   for (; !rbgalloc_mask[rbg]; rbg++)
@@ -306,7 +306,7 @@ int rr_dl_run(module_id_t Mod_id,
     weight_UE[UE_id]++;
 
     int mcs = UE_info->eNB_UE_stats[CC_id][UE_id].dlsch_mcs1;
-    int tbs = get_TBS_DL(mcs, rb_required[UE_id]);
+    uint32_t tbs = get_TBS_DL(mcs, rb_required[UE_id]);
     UE_info->UE_template[CC_id][UE_id].total_allocated_tbs += tbs;
 
     printf("\t allocate: UE_id=%d, RGB=%d TBS=%d, total_TBS=%d\n",UE_id, sRBG, tbs, UE_info->UE_template[CC_id][UE_id].total_allocated_tbs);
@@ -318,6 +318,7 @@ int rr_dl_run(module_id_t Mod_id,
     } else {
       cur_UE = UE_sched.next[*cur_UE] < 0 ? &UE_sched.head : &UE_sched.next[*cur_UE];
     }
+
     n_rbg_sched--;
     if (n_rbg_sched <= 0)
       break;
